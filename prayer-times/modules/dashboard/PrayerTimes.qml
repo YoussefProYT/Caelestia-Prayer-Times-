@@ -11,18 +11,31 @@ import qs.modules.nexus.common
 Item {
     id: root
 
+    function t(arabic: string, english: string): string {
+        return PrayerService.uiLanguage === "en" ? english : arabic;
+    }
+
     property bool settingsOpen: false
+    property bool iqamaSettingsOpen: false
+    readonly property list<MenuItem> madhabOptions: [
+        MenuItem { text: PrayerService.uiLanguage === "en" ? "Shafi'i, Maliki and Hanbali (standard)" : "الشافعي والمالكي والحنبلي (قياسي)" },
+        MenuItem { text: PrayerService.uiLanguage === "en" ? "Hanafi" : "الحنفي" }
+    ]
+    readonly property list<MenuItem> languageOptions: [
+        MenuItem { text: "العربية" },
+        MenuItem { text: "English" }
+    ]
     readonly property list<MenuItem> timeFormatOptions: [
-        MenuItem { text: qsTr("Follow shell") },
-        MenuItem { text: qsTr("24-hour") },
-        MenuItem { text: qsTr("12-hour") }
+        MenuItem { text: root.t("اتّباع إعدادات الشِل", "Follow shell") },
+        MenuItem { text: root.t("24 ساعة", "24-hour") },
+        MenuItem { text: root.t("12 ساعة", "12-hour") }
     ]
     readonly property var iqamaPrayerOptions: [
-        { key: "Fajr", label: qsTr("الفجر") },
-        { key: "Dhuhr", label: qsTr("الظهر") },
-        { key: "Asr", label: qsTr("العصر") },
-        { key: "Maghrib", label: qsTr("المغرب") },
-        { key: "Isha", label: qsTr("العشاء") }
+        { key: "Fajr", label: root.t("الفجر", "Fajr") },
+        { key: "Dhuhr", label: root.t("الظهر", "Dhuhr") },
+        { key: "Asr", label: root.t("العصر", "Asr") },
+        { key: "Maghrib", label: root.t("المغرب", "Maghrib") },
+        { key: "Isha", label: root.t("العشاء", "Isha") }
     ]
 
     implicitWidth: 840
@@ -56,13 +69,13 @@ Item {
                 spacing: Tokens.spacing.extraSmall
 
                 StyledText {
-                    text: qsTr("Prayer times")
+                    text: root.t("مواقيت الصلاة", "Prayer times")
                     font: Tokens.font.body.builders.large.size(28).weight(Font.DemiBold).build()
                     color: Colours.palette.m3onSurface
                 }
 
                 StyledText {
-                    text: PrayerService.locationLabel || qsTr("Finding location...")
+                    text: PrayerService.locationLabel || root.t("جارٍ تحديد الموقع...", "Finding location...")
                     font: Tokens.font.body.medium
                     color: Colours.palette.m3onSurfaceVariant
                 }
@@ -77,7 +90,7 @@ Item {
 
                 StyledText {
                     Layout.alignment: Qt.AlignRight
-                    text: new Date().toLocaleDateString(Qt.locale(), "dddd, MMMM d")
+                    text: new Date().toLocaleDateString(PrayerService.uiLanguage === "en" ? Qt.locale("en_US") : Qt.locale("ar_EG"), "dddd, MMMM d")
                     font: Tokens.font.body.medium
                     color: Colours.palette.m3onSurface
                 }
@@ -85,7 +98,7 @@ Item {
                 StyledText {
                     Layout.alignment: Qt.AlignRight
                     visible: PrayerService.hijriDate.length > 0
-                    text: PrayerService.hijriDate ? qsTr("Hijri %1").arg(PrayerService.hijriDate) : ""
+                    text: PrayerService.hijriDate ? root.t("هجري %1", "Hijri %1").arg(PrayerService.hijriDate) : ""
                     font: Tokens.font.body.small
                     color: Colours.palette.m3onSurfaceVariant
                 }
@@ -107,23 +120,23 @@ Item {
             spacing: Tokens.spacing.extraSmall
 
             SectionHeader {
-                text: qsTr("Prayer settings")
+                text: root.t("إعدادات الصلاة", "Prayer settings")
             }
 
             StyledTextField {
                 id: locationField
 
                 Layout.fillWidth: true
-                placeholderText: qsTr("City, country, or latitude,longitude")
+                placeholderText: root.t("المدينة، الدولة، أو خط العرض,خط الطول", "City, country, or latitude,longitude")
                 leadingIcon: "location_on"
-                supportingText: qsTr("Leave empty for automatic location. City search needs internet; coordinates work offline.")
+                supportingText: root.t("اتركه فارغًا للموقع التلقائي. البحث عن المدينة يحتاج الإنترنت؛ الإحداثيات تعمل دون اتصال.", "Leave empty for automatic location. City search needs internet; coordinates work offline.")
                 onEditingFinished: PrayerService.setLocation(text)
             }
 
             SelectRow {
                 first: true
-                label: qsTr("Time format")
-                subtext: qsTr("Choose how prayer times are displayed")
+                label: root.t("تنسيق الوقت", "Time format")
+                subtext: root.t("اختر طريقة عرض مواقيت الصلاة", "Choose how prayer times are displayed")
                 menuItems: root.timeFormatOptions
                 active: root.timeFormatOptions[
                     PrayerService.timeFormat === "12h" ? 2 : PrayerService.timeFormat === "24h" ? 1 : 0
@@ -134,26 +147,57 @@ Item {
                 }
             }
 
-            SectionHeader {
-                text: qsTr("Iqama delay after adhan")
+            SelectRow {
+                label: root.t("المذهب", "Madhab")
+                subtext: root.t("الشافعي والمالكي والحنبلي (قياسي) أو الحنفي", "Shafi'i, Maliki and Hanbali (standard), or Hanafi")
+                menuItems: root.madhabOptions
+                active: root.madhabOptions[PrayerService.madhab === "hanafi" ? 1 : 0]
+                onSelected: item => PrayerService.setMadhab(root.madhabOptions.indexOf(item) === 1 ? "hanafi" : "standard")
             }
 
-            Repeater {
-                model: root.iqamaPrayerOptions
+            SelectRow {
+                label: root.t("لغة الإضافة", "Addon language")
+                subtext: root.t("العربية أو الإنجليزية", "Arabic or English")
+                menuItems: root.languageOptions
+                active: root.languageOptions[PrayerService.uiLanguage === "en" ? 1 : 0]
+                onSelected: item => PrayerService.setLanguage(root.languageOptions.indexOf(item) === 1 ? "en" : "ar")
+            }
 
-                delegate: StepperRow {
+            RowLayout {
+                Layout.fillWidth: true
+                SectionHeader {
+                    Layout.fillWidth: true
+                    text: root.t("تأخير الإقامة بعد الأذان", "Iqama delay after adhan")
+                }
+                IconButton {
+                    icon: root.iqamaSettingsOpen ? "expand_less" : "timer"
+                    type: IconButton.Tonal
+                    padding: Tokens.padding.small
+                    onClicked: root.iqamaSettingsOpen = !root.iqamaSettingsOpen
+                }
+            }
+
+            ColumnLayout {
+                visible: root.iqamaSettingsOpen
+                Layout.fillWidth: true
+
+                Repeater {
+                    model: root.iqamaPrayerOptions
+
+                    delegate: StepperRow {
                     required property var modelData
                     required property int index
 
                     first: index === 0
                     last: index === root.iqamaPrayerOptions.length - 1
                     label: modelData.label
-                    subtext: qsTr("Minutes after adhan")
+                    subtext: root.t("دقائق بعد الأذان", "Minutes after adhan")
                     value: Number(PrayerService.iqamaDelays[modelData.key] ?? (modelData.key === "Maghrib" ? 5 : 15))
                     from: 0
                     to: 60
                     stepSize: 5
-                    onMoved: value => PrayerService.setIqamaDelay(modelData.key, value)
+                        onMoved: value => PrayerService.setIqamaDelay(modelData.key, value)
+                    }
                 }
             }
         }
@@ -189,7 +233,7 @@ Item {
                     spacing: Tokens.spacing.extraSmall
 
                     StyledText {
-                        text: qsTr("الصلاة القادمة")
+                        text: root.t("الصلاة القادمة", "Next prayer")
                         font: Tokens.font.body.small
                         color: Colours.palette.m3onSurfaceVariant
                     }
@@ -209,8 +253,8 @@ Item {
                     StyledText {
                         Layout.alignment: Qt.AlignRight
                         text: PrayerService.nextPrayerEventType === "iqama"
-                            ? qsTr("الوقت المتبقي للإقامة")
-                            : qsTr("الوقت المتبقي للأذان")
+                            ? root.t("الوقت المتبقي للإقامة", "Time until iqama")
+                            : root.t("الوقت المتبقي للأذان", "Time until adhan")
                         font: Tokens.font.body.small
                         color: Colours.palette.m3onSurfaceVariant
                     }
@@ -225,8 +269,8 @@ Item {
                     StyledText {
                         Layout.alignment: Qt.AlignRight
                         text: PrayerService.nextPrayerEventType === "iqama"
-                            ? qsTr("الإقامة %1%2").arg(PrayerService.nextPrayerIqamaTime).arg(PrayerService.nextPrayerIsTomorrow ? qsTr(" · غدًا") : "")
-                            : qsTr("الأذان %1 · الإقامة %2%3").arg(PrayerService.nextPrayerAdhanTime).arg(PrayerService.nextPrayerIqamaTime).arg(PrayerService.nextPrayerIsTomorrow ? qsTr(" · غدًا") : "")
+                            ? root.t("الإقامة %1%2", "Iqama %1%2").arg(PrayerService.nextPrayerIqamaTime).arg(PrayerService.nextPrayerIsTomorrow ? root.t(" · غدًا", " · tomorrow") : "")
+                            : root.t("الأذان %1 · الإقامة %2%3", "Adhan %1 · Iqama %2%3").arg(PrayerService.nextPrayerAdhanTime).arg(PrayerService.nextPrayerIqamaTime).arg(PrayerService.nextPrayerIsTomorrow ? root.t(" · غدًا", " · tomorrow") : "")
                         font: Tokens.font.body.small
                         color: Colours.palette.m3onSurfaceVariant
                     }
@@ -310,7 +354,7 @@ Item {
 
                 anchors.centerIn: parent
                 width: parent.width - Tokens.padding.large * 2
-                text: PrayerService.error || qsTr("Loading prayer times...")
+                text: PrayerService.error || root.t("جارٍ تحميل مواقيت الصلاة...", "Loading prayer times...")
                 horizontalAlignment: Text.AlignHCenter
                 wrapMode: Text.WordWrap
                 font: Tokens.font.body.medium

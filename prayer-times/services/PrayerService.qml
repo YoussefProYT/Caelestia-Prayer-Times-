@@ -24,6 +24,12 @@ Singleton {
     property string resolvedCityLabel: ""
     property int calculationMethod: 5
     property int asrSchool: 0
+    property string madhab: "standard"
+    property string uiLanguage: "ar"
+
+    function t(arabic: string, english: string): string {
+        return root.uiLanguage === "en" ? english : arabic;
+    }
     property string timeFormat: "system"
     property var iqamaDelays: ({ Fajr: 15, Dhuhr: 15, Asr: 15, Maghrib: 5, Isha: 15 })
     property int requestSerial: 0
@@ -39,12 +45,12 @@ Singleton {
     property bool nextPrayerIsTomorrow: false
 
     readonly property var prayerRows: [
-        { key: "Fajr", label: "الفجر", icon: "dark_mode" },
-        { key: "Sunrise", label: "الشروق", icon: "wb_twilight" },
-        { key: "Dhuhr", label: "الظهر", icon: "light_mode" },
-        { key: "Asr", label: "العصر", icon: "wb_sunny" },
-        { key: "Maghrib", label: "المغرب", icon: "wb_twilight" },
-        { key: "Isha", label: "العشاء", icon: "nights_stay" }
+        { key: "Fajr", label: t("الفجر", "Fajr"), icon: "dark_mode" },
+        { key: "Sunrise", label: t("الشروق", "Sunrise"), icon: "wb_twilight" },
+        { key: "Dhuhr", label: t("الظهر", "Dhuhr"), icon: "light_mode" },
+        { key: "Asr", label: t("العصر", "Asr"), icon: "wb_sunny" },
+        { key: "Maghrib", label: t("المغرب", "Maghrib"), icon: "wb_twilight" },
+        { key: "Isha", label: t("العشاء", "Isha"), icon: "nights_stay" }
     ]
 
     function parseCoordinates(value: string): var {
@@ -86,6 +92,7 @@ Singleton {
         const previousLocation = configuredLocation;
         const previousMethod = calculationMethod;
         const previousAsrSchool = asrSchool;
+        const previousMadhab = madhab;
         const previousTimeFormat = timeFormat;
         const wasLoaded = settingsLoaded;
         configuredLocation = String(settings.location ?? "").trim();
@@ -98,7 +105,10 @@ Singleton {
         resolvedCityLabel = savedCoordinates ? String(savedResolved.label ?? configuredLocation) : "";
         const method = Number(settings.calculationMethod);
         calculationMethod = Number.isInteger(method) && method >= 0 && method <= 23 ? method : 5;
-        asrSchool = Number(settings.asrSchool) === 1 ? 1 : 0;
+        const savedMadhab = String(settings.madhab ?? (Number(settings.asrSchool) === 1 ? "hanafi" : "standard"));
+        madhab = savedMadhab === "hanafi" ? "hanafi" : "standard";
+        asrSchool = madhab === "hanafi" ? 1 : 0;
+        uiLanguage = String(settings.language) === "en" ? "en" : "ar";
         timeFormat = ["system", "12h", "24h"].includes(settings.timeFormat) ? settings.timeFormat : "system";
         const savedDelays = settings.iqamaDelays && typeof settings.iqamaDelays === "object" ? settings.iqamaDelays : {};
         const defaults = { Fajr: 15, Dhuhr: 15, Asr: 15, Maghrib: 5, Isha: 15 };
@@ -109,7 +119,7 @@ Singleton {
         }
         iqamaDelays = delays;
         settingsLoaded = true;
-        if (!wasLoaded || previousLocation !== configuredLocation || previousMethod !== calculationMethod || previousAsrSchool !== asrSchool) {
+        if (!wasLoaded || previousLocation !== configuredLocation || previousMethod !== calculationMethod || previousAsrSchool !== asrSchool || previousMadhab !== madhab) {
             reload();
         } else {
             if (previousTimeFormat !== timeFormat)
@@ -123,6 +133,8 @@ Singleton {
             location: configuredLocation,
             calculationMethod: calculationMethod,
             asrSchool: asrSchool,
+            madhab: madhab,
+            language: uiLanguage,
             timeFormat: timeFormat,
             iqamaDelays: iqamaDelays,
             resolvedLocation: resolvedCityQuery === configuredLocation && resolvedCityCoordinates
@@ -135,6 +147,20 @@ Singleton {
                 : null
         };
         preferencesFile.setText(JSON.stringify(settings, null, 2) + "\n");
+    }
+
+    function setMadhab(value: string): void {
+        madhab = value === "hanafi" ? "hanafi" : "standard";
+        asrSchool = madhab === "hanafi" ? 1 : 0;
+        saveSettings();
+        reload();
+    }
+
+    function setLanguage(value: string): void {
+        uiLanguage = value === "en" ? "en" : "ar";
+        saveSettings();
+        // Rebuild the schedules so nextPrayerName and all dynamic labels use the new language.
+        reload();
     }
 
     function setTimeFormat(format: string): void {
@@ -196,7 +222,7 @@ Singleton {
 
         if (!Weather.loc) {
             locationLabel = "";
-            error = qsTr("Waiting for automatic location. Enter a city or coordinates in Prayer settings to set it manually.");
+            error = t("في انتظار الموقع التلقائي. أدخل مدينة أو إحداثيات في إعدادات الصلاة لتحديده يدويًا.", "Waiting for automatic location. Enter a city or coordinates in Prayer settings to set it manually.");
             Weather.reload();
             locationWait.restart();
             return;
@@ -204,7 +230,7 @@ Singleton {
 
         const coordinates = parseCoordinates(Weather.loc);
         if (!coordinates) {
-            fail(qsTr("Unable to determine coordinates. Enter a city or coordinates in Prayer settings."));
+            fail(t("تعذر تحديد الإحداثيات. أدخل مدينة أو إحداثيات في إعدادات الصلاة.", "Unable to determine coordinates. Enter a city or coordinates in Prayer settings."));
             return;
         }
 
@@ -229,13 +255,13 @@ Singleton {
             try {
                 response = JSON.parse(text);
             } catch (parseError) {
-                fail(qsTr("Could not read the city search response."));
+                fail(t("تعذر قراءة نتيجة البحث عن المدينة.", "Could not read the city search response."));
                 return;
             }
 
             const result = response?.results?.[0];
             if (!result || !Number.isFinite(Number(result.latitude)) || !Number.isFinite(Number(result.longitude))) {
-                fail(qsTr("City not found. Enter a city name or latitude,longitude."));
+                fail(t("لم يتم العثور على المدينة. أدخل اسم مدينة أو خط العرض,خط الطول.", "City not found. Enter a city name or latitude,longitude."));
                 return;
             }
 
@@ -247,7 +273,7 @@ Singleton {
             requestTimings(root.resolvedCityCoordinates, root.resolvedCityLabel, serial);
         }, errorText => {
             if (serial === requestSerial)
-                fail(qsTr("City lookup needs an internet connection. Enter latitude,longitude for offline calculation."));
+                fail(t("البحث عن المدينة يحتاج إلى الإنترنت. أدخل خط العرض,خط الطول للحساب دون اتصال.", "City lookup needs an internet connection. Enter latitude,longitude for offline calculation."));
             console.warn(lc, `City lookup failed: ${errorText}`);
         });
     }
@@ -331,11 +357,11 @@ Singleton {
 
     function prayerScheduleFor(calculated: var): var {
         return [
-            { key: "Fajr", name: qsTr("الفجر"), at: calculated.fajr },
-            { key: "Dhuhr", name: qsTr("الظهر"), at: calculated.dhuhr },
-            { key: "Asr", name: qsTr("العصر"), at: calculated.asr },
-            { key: "Maghrib", name: qsTr("المغرب"), at: calculated.maghrib },
-            { key: "Isha", name: qsTr("العشاء"), at: calculated.isha }
+            { key: "Fajr", name: t("الفجر", "Fajr"), at: calculated.fajr },
+            { key: "Dhuhr", name: t("الظهر", "Dhuhr"), at: calculated.dhuhr },
+            { key: "Asr", name: t("العصر", "Asr"), at: calculated.asr },
+            { key: "Maghrib", name: t("المغرب", "Maghrib"), at: calculated.maghrib },
+            { key: "Isha", name: t("العشاء", "Isha"), at: calculated.isha }
         ];
     }
 
@@ -398,7 +424,7 @@ Singleton {
             const library = AdhanLib.Adhan;
             const methodId = Number(root.calculationMethod);
             const parameters = parametersForMethod(Number.isInteger(methodId) ? methodId : 5);
-            parameters.madhab = root.asrSchool === 1 ? library.Madhab.Hanafi : library.Madhab.Shafi;
+            parameters.madhab = root.madhab === "hanafi" ? library.Madhab.Hanafi : library.Madhab.Shafi;
             parameters.polarCircleResolution = library.PolarCircleResolution.AqrabBalad;
 
             // Adhan calculates locally from coordinates and the machine's local date/timezone.
@@ -425,7 +451,7 @@ Singleton {
             };
 
             if (Object.values(rawPrayerTimes).some(value => !value || isNaN(value.getTime()))) {
-                fail(qsTr("The local calculator could not resolve times for these coordinates."));
+                fail(t("تعذر حساب المواقيت لهذه الإحداثيات.", "The local calculator could not resolve times for these coordinates."));
                 return;
             }
 
@@ -439,7 +465,7 @@ Singleton {
             updateNextPrayer();
         } catch (calculationError) {
             console.warn(lc, `Local prayer calculation failed: ${calculationError}`);
-            fail(qsTr("Local calculation failed. Check the coordinates and calculation method."));
+            fail(t("فشل الحساب المحلي. تحقق من الإحداثيات وطريقة الحساب.", "Local calculation failed. Check the coordinates and calculation method."));
         }
     }
 
@@ -487,7 +513,7 @@ Singleton {
         repeat: false
         onTriggered: {
             if (!Weather.loc && !root.configuredLocation)
-                root.fail(qsTr("Automatic location is unavailable. Enter a city or coordinates in Prayer settings."));
+                root.fail(t("الموقع التلقائي غير متاح. أدخل مدينة أو إحداثيات في إعدادات الصلاة.", "Automatic location is unavailable. Enter a city or coordinates in Prayer settings."));
         }
     }
 
